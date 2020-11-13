@@ -18,25 +18,25 @@ int base = 0;
 int windowSize = 0;
 int sendflag = 1;
 
-void DieWithError (char *errorMessage);	/* Error handling function */
-void CatchAlarm (int ignored);	/* Handler for SIGALRM */
-int max (int a, int b);		/* macros that most compilers include - used for calculating a few things */
-int min(int a, int b);		/* I think gcc includes them but this is to be safe */
+void DieWithError (char *errorMessage);	
+void CatchAlarm (int ignored);	
+int max (int a, int b);		
+int min(int a, int b);		
 
 int main (int argc, char *argv[])
 {
-  int sock;			/* Socket descriptor */
-  struct sockaddr_in gbnServAddr;	/* Echo server address */
-  struct sockaddr_in fromAddr;	/* Source address of echo */
-  unsigned short gbnServPort;	/* Echo server port */
-  unsigned int fromSize;	/* In-out of address size for recvfrom() */
-  struct sigaction myAction;	/* For setting signal handler */
-  char *servIP;			/* IP address of server */
-   int respLen;			/* Size of received datagram */
-  int packet_received = -1;	/* highest ack received */
-  int packet_sent = -1;		/* highest packet sent */
+  int sock;		
+  struct sockaddr_in gbnServAddr;	
+  struct sockaddr_in fromAddr;	
+  unsigned short gbnServPort;
+  unsigned int fromSize;	
+  struct sigaction myAction;	
+  char *servIP;		
+   int respLen;			
+  int packet_received = -1;	
+  int packet_sent = -1;		
 
-  char buffer[8192] =	"test ini udh kekirim belum ya";	// data yang dikirim
+  char buffer[8192] =	"Test, ini data yang dikirim.";	// data yang dikirim
   const int datasize = 8192;	//ukuran total data buffer 
   int chunkSize;		// ukuran 1 packet
   int nPackets = 0;		// jumlah packet yang dikirim
@@ -56,22 +56,20 @@ int main (int argc, char *argv[])
     fprintf(stderr, "chunk size must be less than 512\n");
     exit(1);
   }
-
   nPackets = datasize / chunkSize; //menentukan jumlah packet dari datasize/chunkSize
 
-  if (datasize % chunkSize)
-    nPackets++;			/* if it doesn't divide cleanly, need one more odd-sized packet */
+  if (datasize % chunkSize) nPackets++;			
+  //nPackets=8;
   
   printf("total packet : %d\n",nPackets);
-  // nPackets--;
-  /* Create a best-effort datagram socket using UDP */
+
+  //create socket
   if ((sock = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
     DieWithError ("socket() failed");
   printf ("created socket\n");
 
-  /* Set signal handler for alarm signal */
   myAction.sa_handler = CatchAlarm;
-  if (sigfillset (&myAction.sa_mask) < 0)	/* block everything in handler */
+  if (sigfillset (&myAction.sa_mask) < 0)	
     DieWithError ("sigfillset() failed");
   myAction.sa_flags = 0;
 
@@ -79,10 +77,10 @@ int main (int argc, char *argv[])
     DieWithError ("sigaction() failed for SIGALRM");
 
   //local addres structure
-  memset (&gbnServAddr, 0, sizeof (gbnServAddr));	/* Zero out structure */
+  memset (&gbnServAddr, 0, sizeof (gbnServAddr));	
   gbnServAddr.sin_family = AF_INET;
   gbnServAddr.sin_addr.s_addr = inet_addr (servIP);	// Server IP address local
-  gbnServAddr.sin_port = htons (gbnServPort);	/* Server port */
+  gbnServAddr.sin_port = htons (gbnServPort);
 
   // Send Data to the server 
   while ((packet_received < nPackets-1) && (tries < MAXTRIES))
@@ -93,24 +91,23 @@ int main (int argc, char *argv[])
 	      int ctr; //window size counter
 	      for (ctr = 0; ctr < windowSize; ctr++)
 	      {
-	        packet_sent = min(max (base + ctr, packet_sent),nPackets-1); /* calc highest packet sent */
-	        struct gbnpacket currpacket; /* current packet we're working with */
+	        packet_sent = min(max (base + ctr, packet_sent),nPackets-1);
+	        struct gbnpacket currpacket; 
 	        if ((base + ctr) < nPackets)
 		      {
 		        memset(&currpacket,0,sizeof(currpacket));
- 		        printf ("sending packet %d packet_sent %d packet_received %d\n",base+ctr, packet_sent, packet_received);
+ 		        printf ("sending packet %d packet_sent %d packet_received %d\n",base+ctr, packet_sent, packet_received+1);
 
-            currpacket.type = htonl (1); /*convert to network endianness */
+            currpacket.type = htonl (1);
             currpacket.seq_no = htonl (base + ctr);
             int currlength;
-            if ((datasize - ((base + ctr) * chunkSize)) >= chunkSize) /* length chunksize except last packet */
+            if ((datasize - ((base + ctr) * chunkSize)) >= chunkSize) 
               currlength = chunkSize;
             else
               currlength = datasize % chunkSize;
             currpacket.length = htonl (currlength);
-		        memcpy (currpacket.data, /*copy buffer data into packet */
-			      buffer + ((base + ctr) * chunkSize), currlength);
-		        if (sendto(sock, &currpacket, (sizeof (int) * 3) + currlength, 0, /* send packet */(struct sockaddr *) &gbnServAddr,
+		        memcpy (currpacket.data,buffer + ((base + ctr) * chunkSize), currlength);
+		        if (sendto(sock, &currpacket, (sizeof (int) * 3) + currlength, 0, (struct sockaddr *) &gbnServAddr,
 		        sizeof (gbnServAddr)) !=	((sizeof (int) * 3) + currlength))
 		          DieWithError("sendto() sent a different number of bytes than expected");
 		      }
@@ -119,13 +116,13 @@ int main (int argc, char *argv[])
       // Get a response
 
       fromSize = sizeof (fromAddr);
-      alarm (TIMEOUT_SECS);	/* Set the timeout */
+      alarm (TIMEOUT_SECS);	
       struct gbnpacket currAck;
       while ((respLen = (recvfrom (sock, &currAck, sizeof (int) * 3, 0,(struct sockaddr *) &fromAddr,&fromSize))) < 0)
 
-	      if (errno == EINTR)	/* Alarm went off  */
+	      if (errno == EINTR)	
 	      {
-	        if (tries < MAXTRIES)	/* incremented by signal handler */
+	        if (tries < MAXTRIES)	
 	        {
 		         printf ("timed out, %d more tries...\n", MAXTRIES - tries);
 		        break;
@@ -134,15 +131,14 @@ int main (int argc, char *argv[])
 	      }
 	      else DieWithError ("recvfrom() failed");
 
-      /* recvfrom() got something --  cancel the timeout */
       if (respLen)
 	    {
 	      int acktype = ntohl (currAck.type); /* convert to host byte order */
 	      int ackno = ntohl (currAck.seq_no); 
 	      if (ackno > packet_received && acktype == 2)
 	      {
-	        printf ("received ack\n"); /* receive/handle ack */
 	        packet_received++;
+	        printf ("received ack %d\n", packet_received); /* receive/handle ack */
 	        base = packet_received+1; /* handle new ack */
 	        if (packet_received == packet_sent) /* all sent packets acked */
 		      {
@@ -161,7 +157,7 @@ int main (int argc, char *argv[])
 	    }
   }
   int ctr;
-  for (ctr = 0; ctr < 10; ctr++) /* send 10 teardown packets - don't have to necessarily send 10 but spec said "up to 10" */
+  for (ctr = 0; ctr < 10; ctr++) //data terkirim
   {
       struct gbnpacket teardown;
       teardown.type = htonl (4);
@@ -169,7 +165,7 @@ int main (int argc, char *argv[])
       teardown.length = htonl (0);
       sendto (sock, &teardown, (sizeof (int) * 3), 0,(struct sockaddr *) &gbnServAddr, sizeof (gbnServAddr));
   }
-  close (sock); /* close socket */
+  close (sock); //close socket
   exit (0);
 }
 
