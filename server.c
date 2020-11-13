@@ -10,29 +10,29 @@
 #include <signal.h>
 #include "gbnpacket.c" //include go-back-n packet structure
 
-#define ECHOMAX 255		/* Longest string to echo */
+#define ECHOMAX 255	
 
-void DieWithError (char *errorMessage);	/* External error handling function */
+void DieWithError (char *errorMessage);	
 void CatchAlarm (int ignored);
 
 int main (int argc, char *argv[])
 {
-  char buffer[8193];		/* buffer with room for null byte */
-  buffer[8192] = '\0';		/* null terminate the buffer */
-  int sock;			/* Socket */
-  struct sockaddr_in gbnServAddr;	/* Local address */
-  struct sockaddr_in gbnClntAddr;	/* Client address */
-  unsigned int cliAddrLen;	/* Length of incoming message */
-  unsigned short gbnServPort;	/* Server port */
-  int recvMsgSize;		/* Size of received message */
-  int packet_rcvd = -1;		/* highest packet successfully received */
+  char buffer[8193];		
+  buffer[8192] = '\0';	
+  int sock;		
+  struct sockaddr_in gbnServAddr;	
+  struct sockaddr_in gbnClntAddr;	
+  unsigned int cliAddrLen;	
+  unsigned short gbnServPort;	
+  int recvMsgSize;	
+  int packet_rcvd = -1;	
   struct sigaction myAction;
-  double lossRate;		/* loss rate as a decimal, 50% = input .50 */
 
+  double lossRate;//loss rate, berapa persen data yg hilang
 
-  bzero (buffer, 8192);		/* zero out the buffer */
+  bzero (buffer, 8192);		
 
-  if (argc < 3 || argc > 4)		/* Test for correct number of parameters */
+  if (argc < 3 || argc > 4)		
 	{
       fprintf (stderr, "Usage:  %s <UDP SERVER PORT> <CHUNK SIZE> [<LOSS RATE>]\n", argv[0]);
       exit (1);
@@ -51,16 +51,16 @@ int main (int argc, char *argv[])
     DieWithError ("socket() failed");
 
   // local addres structure
-  memset (&gbnServAddr, 0, sizeof (gbnServAddr));	/* Zero out structure */
-  gbnServAddr.sin_family = AF_INET;	/* Internet address family */
-  gbnServAddr.sin_addr.s_addr = htonl (INADDR_ANY);	/* Any incoming interface */
-  gbnServAddr.sin_port = htons (gbnServPort);	/* Local port */
+  memset (&gbnServAddr, 0, sizeof (gbnServAddr));	
+  gbnServAddr.sin_family = AF_INET;	
+  gbnServAddr.sin_addr.s_addr = htonl (INADDR_ANY);	
+  gbnServAddr.sin_port = htons (gbnServPort);
 
-  /* Bind to the local address */
+  // Bind to the local address
   if (bind (sock, (struct sockaddr *) &gbnServAddr, sizeof (gbnServAddr)) < 0)
 	DieWithError ("bind() failed");
   myAction.sa_handler = CatchAlarm;
-  if (sigfillset (&myAction.sa_mask) < 0)/*setup everything for the timer - only used for teardown */
+  if (sigfillset (&myAction.sa_mask) < 0)
     DieWithError ("sigfillset failed");
   myAction.sa_flags = 0;
   if (sigaction (SIGALRM, &myAction, 0) < 0)
@@ -68,51 +68,44 @@ int main (int argc, char *argv[])
 
   for (;;)			
     {
-
-      /* set the size of the in-out parameter */
       cliAddrLen = sizeof (gbnClntAddr);
-      struct gbnpacket currPacket; /* current packet that we're working with */
+      struct gbnpacket currPacket; 
       memset(&currPacket, 0, sizeof(currPacket));
-      /* Block until receive message from a client */
-      recvMsgSize = recvfrom (sock, &currPacket, sizeof (currPacket), 0,(struct sockaddr *) &gbnClntAddr, &cliAddrLen); /* receive GBN packet */
+
+      recvMsgSize = recvfrom (sock, &currPacket, sizeof (currPacket), 0,(struct sockaddr *) &gbnClntAddr, &cliAddrLen); // receive packet
 			      
       currPacket.type = ntohl (currPacket.type);
-      currPacket.length = ntohl (currPacket.length); /* convert from network to host byte order */
+      currPacket.length = ntohl (currPacket.length); 
       currPacket.seq_no = ntohl (currPacket.seq_no);
 
-
-
-      if (currPacket.type == 4) /* tear-down message */
+      if (currPacket.type == 4) //message terkirim
 		{
 			printf("_________________________________\n");
 			printf ("%s\n", buffer);
 			struct gbnpacket ackmsg;
 			ackmsg.type = htonl(8);
-			ackmsg.seq_no = htonl(0);/*convert to network endianness */
+			ackmsg.seq_no = htonl(0);
 			ackmsg.length = htonl(0);
-			if (sendto
-				(sock, &ackmsg, sizeof (ackmsg), 0,
-				(struct sockaddr *) &gbnClntAddr,
-				cliAddrLen) != sizeof (ackmsg))
-				{
-					DieWithError ("Error sending tear-down ack"); /* not a big deal-data already rcvd */
-				}
+			if (sendto(sock, &ackmsg, sizeof (ackmsg), 0,(struct sockaddr *) &gbnClntAddr,cliAddrLen) != sizeof (ackmsg))
+			{
+				DieWithError ("Error sending tear-down ack"); 
+			}
 			alarm (7);
 			while (1)
 			{
 				while ((recvfrom (sock, &currPacket, sizeof (int)*3+chunkSize, 0,(struct sockaddr *) &gbnClntAddr,&cliAddrLen))<0)
 				{
-					if (errno == EINTR)	/* Alarm went off  */
+					if (errno == EINTR)	
 					{
 						exit(0); //never reach
 					}
 				}
-				if (ntohl(currPacket.type) == 4) /* respond to more teardown messages */
+				if (ntohl(currPacket.type) == 4)
 				{
 					ackmsg.type = htonl(8);
-					ackmsg.seq_no = htonl(0);/* convert to network endianness */
+					ackmsg.seq_no = htonl(0);
 					ackmsg.length = htonl(0);
-					if (sendto(sock, &ackmsg, sizeof (ackmsg), 0, /* send teardown ack */(struct sockaddr *) &gbnClntAddr,
+					if (sendto(sock, &ackmsg, sizeof (ackmsg), 0,(struct sockaddr *) &gbnClntAddr,
 					cliAddrLen) != sizeof (ackmsg))
 					{
 						DieWithError ("Error sending tear-down ack");
@@ -124,14 +117,13 @@ int main (int argc, char *argv[])
 		}
       else
 		{
-			if(lossRate > drand48()){
-				printf("data losttttt %d\n", currPacket.seq_no);
+			if(lossRate > drand48()){ //random data lost
+				printf("---- DATA LOST %d\n", currPacket.seq_no);
 				printf("_________________________________\n");
-				continue; /* drop packet - for testing/debug purposes */
+				continue; 
 			}
 			printf ("---- RECEIVE PACKET %d length %d\n", currPacket.seq_no, currPacket.length);
 
-			/* Send ack and store in buffer */
 			if (currPacket.seq_no == packet_rcvd + 1)
 			{
 				packet_rcvd++;
@@ -149,10 +141,8 @@ int main (int argc, char *argv[])
 
 			printf("_________________________________\n");
 			
-		}
-		
+		}	
     }
-  /* NOT REACHED */
 }
 
 void DieWithError (char *errorMessage)
@@ -161,7 +151,7 @@ void DieWithError (char *errorMessage)
   exit (1);
 }
 
-void CatchAlarm (int ignored) /* just exit when encounter timeout */
+void CatchAlarm (int ignored) 
 {
   exit(0);
 }
